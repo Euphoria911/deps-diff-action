@@ -29922,49 +29922,21 @@ function wrappy (fn, cb) {
 
 /***/ }),
 
-/***/ 9407:
-/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+/***/ 9952:
+/***/ ((__unused_webpack_module, exports) => {
 
 "use strict";
 
-var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    var desc = Object.getOwnPropertyDescriptor(m, k);
-    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
-      desc = { enumerable: true, get: function() { return m[k]; } };
-    }
-    Object.defineProperty(o, k2, desc);
-}) : (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    o[k2] = m[k];
-}));
-var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
-    Object.defineProperty(o, "default", { enumerable: true, value: v });
-}) : function(o, v) {
-    o["default"] = v;
-});
-var __importStar = (this && this.__importStar) || (function () {
-    var ownKeys = function(o) {
-        ownKeys = Object.getOwnPropertyNames || function (o) {
-            var ar = [];
-            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
-            return ar;
-        };
-        return ownKeys(o);
-    };
-    return function (mod) {
-        if (mod && mod.__esModule) return mod;
-        var result = {};
-        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
-        __setModuleDefault(result, mod);
-        return result;
-    };
-})();
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-const core = __importStar(__nccwpck_require__(7484));
-const github = __importStar(__nccwpck_require__(3228));
-const COMMENT_MARKER = '<!-- deps-diff-action:comment -->';
-const SECTIONS = [
+exports.COMMENT_MARKER = exports.SECTIONS = void 0;
+exports.parseSemver = parseSemver;
+exports.classifyBump = classifyBump;
+exports.compareVersions = compareVersions;
+exports.diffSection = diffSection;
+exports.bumpBadge = bumpBadge;
+exports.renderBody = renderBody;
+exports.computeTotals = computeTotals;
+exports.SECTIONS = [
     'dependencies',
     'devDependencies',
     'peerDependencies',
@@ -30008,6 +29980,7 @@ function diffSection(section, before, after) {
         removed: [],
         upgraded: [],
         downgraded: [],
+        changed: [],
     };
     const names = new Set([...Object.keys(before), ...Object.keys(after)]);
     for (const name of names) {
@@ -30029,7 +30002,7 @@ function diffSection(section, before, after) {
                 result.downgraded.push(change);
             }
             else {
-                result.upgraded.push(change);
+                result.changed.push(change);
             }
         }
     }
@@ -30038,6 +30011,7 @@ function diffSection(section, before, after) {
     result.removed.sort(byName);
     result.upgraded.sort(byName);
     result.downgraded.sort(byName);
+    result.changed.sort(byName);
     return result;
 }
 function bumpBadge(bump) {
@@ -30052,29 +30026,42 @@ function bumpBadge(bump) {
             return '⚪ other';
     }
 }
+exports.COMMENT_MARKER = '<!-- deps-diff-action:comment -->';
 function renderBody(header, diffs, totals, manifestPath) {
     const lines = [];
-    lines.push(COMMENT_MARKER);
+    lines.push(exports.COMMENT_MARKER);
     lines.push(`## ${header}`);
     lines.push('');
     lines.push(`\`${manifestPath}\``);
     lines.push('');
-    if (totals.added +
+    const totalChanges = totals.added +
         totals.removed +
         totals.upgraded +
-        totals.downgraded ===
-        0) {
+        totals.downgraded +
+        totals.changed;
+    if (totalChanges === 0) {
         lines.push('_No dependency changes detected._');
         return lines.join('\n');
     }
-    lines.push(`**Summary:** ${totals.added} added · ${totals.removed} removed · ${totals.upgraded} upgraded · ${totals.downgraded} downgraded` +
-        (totals.majorBumps > 0 ? ` · ⚠️ ${totals.majorBumps} major` : ''));
+    const summaryParts = [
+        `${totals.added} added`,
+        `${totals.removed} removed`,
+        `${totals.upgraded} upgraded`,
+        `${totals.downgraded} downgraded`,
+    ];
+    if (totals.changed > 0)
+        summaryParts.push(`${totals.changed} changed`);
+    let summary = `**Summary:** ${summaryParts.join(' · ')}`;
+    if (totals.majorBumps > 0)
+        summary += ` · ⚠️ ${totals.majorBumps} major`;
+    lines.push(summary);
     lines.push('');
     for (const diff of diffs) {
         const nonEmpty = diff.added.length +
             diff.removed.length +
             diff.upgraded.length +
-            diff.downgraded.length;
+            diff.downgraded.length +
+            diff.changed.length;
         if (nonEmpty === 0)
             continue;
         lines.push(`### \`${diff.section}\``);
@@ -30093,12 +30080,83 @@ function renderBody(header, diffs, totals, manifestPath) {
         for (const d of diff.downgraded) {
             lines.push(`| ⬇️ downgraded | \`${d.name}\` | \`${d.from}\` | \`${d.to}\` | ${bumpBadge(d.bump)} |`);
         }
+        for (const c of diff.changed) {
+            lines.push(`| 🔄 changed | \`${c.name}\` | \`${c.from}\` | \`${c.to}\` | ${bumpBadge(c.bump)} |`);
+        }
         lines.push('');
     }
     lines.push('');
-    lines.push('<sub>Posted by [deps-diff-action](https://github.com/marketplace/actions/dependency-diff).</sub>');
+    lines.push('<sub>Posted by [deps-diff-action](https://github.com/Euphoria911/deps-diff-action).</sub>');
     return lines.join('\n');
 }
+function computeTotals(diffs) {
+    const totals = {
+        added: 0,
+        removed: 0,
+        upgraded: 0,
+        downgraded: 0,
+        changed: 0,
+        majorBumps: 0,
+    };
+    for (const diff of diffs) {
+        totals.added += diff.added.length;
+        totals.removed += diff.removed.length;
+        totals.upgraded += diff.upgraded.length;
+        totals.downgraded += diff.downgraded.length;
+        totals.changed += diff.changed.length;
+        for (const change of [...diff.upgraded, ...diff.downgraded, ...diff.changed]) {
+            if (change.bump === 'major')
+                totals.majorBumps++;
+        }
+    }
+    return totals;
+}
+
+
+/***/ }),
+
+/***/ 9407:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+const core = __importStar(__nccwpck_require__(7484));
+const github = __importStar(__nccwpck_require__(3228));
+const diff_1 = __nccwpck_require__(9952);
 async function fetchManifest(octokit, owner, repo, ref, path) {
     try {
         const res = await octokit.rest.repos.getContent({
@@ -30122,7 +30180,7 @@ async function fetchManifest(octokit, owner, repo, ref, path) {
 }
 async function upsertComment(octokit, owner, repo, issueNumber, body) {
     const comments = await octokit.paginate(octokit.rest.issues.listComments, { owner, repo, issue_number: issueNumber, per_page: 100 });
-    const existing = comments.find((c) => typeof c.body === 'string' && c.body.includes(COMMENT_MARKER));
+    const existing = comments.find((c) => typeof c.body === 'string' && c.body.includes(diff_1.COMMENT_MARKER));
     if (existing) {
         await octokit.rest.issues.updateComment({
             owner,
@@ -30175,36 +30233,22 @@ async function run() {
             return;
         }
         const sectionsToDiff = includeDev
-            ? SECTIONS
-            : SECTIONS.filter((s) => s !== 'devDependencies');
+            ? diff_1.SECTIONS
+            : diff_1.SECTIONS.filter((s) => s !== 'devDependencies');
         const diffs = [];
-        const totals = {
-            added: 0,
-            removed: 0,
-            upgraded: 0,
-            downgraded: 0,
-            majorBumps: 0,
-        };
         for (const section of sectionsToDiff) {
             const before = (beforeManifest?.[section] ?? {});
             const after = (afterManifest?.[section] ?? {});
-            const diff = diffSection(section, before, after);
-            diffs.push(diff);
-            totals.added += diff.added.length;
-            totals.removed += diff.removed.length;
-            totals.upgraded += diff.upgraded.length;
-            totals.downgraded += diff.downgraded.length;
-            for (const change of [...diff.upgraded, ...diff.downgraded]) {
-                if (change.bump === 'major')
-                    totals.majorBumps++;
-            }
+            diffs.push((0, diff_1.diffSection)(section, before, after));
         }
+        const totals = (0, diff_1.computeTotals)(diffs);
         core.setOutput('added', totals.added);
         core.setOutput('removed', totals.removed);
         core.setOutput('upgraded', totals.upgraded);
         core.setOutput('downgraded', totals.downgraded);
+        core.setOutput('changed', totals.changed);
         core.setOutput('major-bumps', totals.majorBumps);
-        const body = renderBody(header, diffs, totals, manifestPath);
+        const body = (0, diff_1.renderBody)(header, diffs, totals, manifestPath);
         await upsertComment(octokit, owner, repo, pr.number, body);
         if (failOnMajor && totals.majorBumps > 0) {
             core.setFailed(`Found ${totals.majorBumps} major-version bump(s) and fail-on-major is enabled.`);
