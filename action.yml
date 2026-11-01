@@ -1,0 +1,44 @@
+name: 'Dependency Diff'
+description: 'Posts a clean, visual diff of package.json dependency changes on pull requests.'
+author: 'Euphoria911'
+branding:
+  icon: 'package'
+  color: 'purple'
+
+inputs:
+  github-token:
+    description: 'GITHUB_TOKEN or a PAT with pull-requests: write.'
+    required: false
+    default: ${{ github.token }}
+  manifest-path:
+    description: 'Path to the package.json file to diff.'
+    required: false
+    default: 'package.json'
+  comment-header:
+    description: 'Header text for the PR comment.'
+    required: false
+    default: '📦 Dependency changes'
+  fail-on-major:
+    description: 'Fail the check if any dependency has a major-version bump.'
+    required: false
+    default: 'false'
+  include-dev:
+    description: 'Include devDependencies in the diff.'
+    required: false
+    default: 'true'
+
+outputs:
+  added:
+    description: 'Count of added dependencies.'
+  removed:
+    description: 'Count of removed dependencies.'
+  upgraded:
+    description: 'Count of upgraded dependencies.'
+  downgraded:
+    description: 'Count of downgraded dependencies.'
+  major-bumps:
+    description: 'Count of major-version bumps.'
+
+runs:
+  using: 'node20'
+  main: 'dist/index.js'

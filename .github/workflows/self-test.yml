@@ -1,0 +1,22 @@
+name: Self-test
+
+on:
+  pull_request:
+    paths:
+      - 'package.json'
+      - 'src/**'
+      - 'action.yml'
+      - 'dist/**'
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  diff:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run action against itself
+        uses: ./
+        with:
+          comment-header: '🧪 Self-test — Dependency changes'
