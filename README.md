@@ -63,6 +63,7 @@ That's it. The action re-reads `package.json` at both the base and head commits 
 | `removed` | Count of removed dependencies. |
 | `upgraded` | Count of upgraded dependencies. |
 | `downgraded` | Count of downgraded dependencies. |
+| `changed` | Count of non-semver version changes (e.g. git/url specs). |
 | `major-bumps` | Count of major-version bumps. |
 
 ## Advanced example
@@ -103,11 +104,18 @@ jobs:
 3. Classifies version changes as **major / minor / patch / other** using a lightweight semver parser (ignores range prefixes like `^` and `~`).
 4. Posts a single sticky comment, keyed by an HTML marker, that it edits in place on subsequent pushes.
 
+## Caveats
+
+- **Pull requests from forks** receive a read-only `GITHUB_TOKEN`, so the comment post will fail with a 403. This is a GitHub-wide security policy, not a bug in the action. If you need fork support, run the diff in a `pull_request_target` workflow (and read the [security guidance](https://securitylab.github.com/research/github-actions-preventing-pwn-requests/) before you do).
+- **Non-semver versions** (`workspace:*`, `git+https://…`, `file:…`, `latest`, `1.2.x`) are reported as **🔄 changed** with a `⚪ other` bump — you'll still see the exact from/to strings, but the semver badge is uninformative because they aren't semver.
+- **Monorepos** need one workflow step per `package.json`; set `manifest-path` accordingly.
+
 ## Development
 
 ```bash
 npm install
 npm run lint      # typecheck
+npm test          # unit tests (node:test + tsx)
 npm run build     # bundle to dist/ with ncc
 ```
 
